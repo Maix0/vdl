@@ -1,6 +1,7 @@
-import http from "http";
+import https from "https";
 import fs from "fs";
 import cliProgress from "cli-progress";
+import http from "http";
 
 const bar_opt = {
     format: '{filename} [{bar}] {percentage}% | ETA: {eta}s | {value_fmt} {value_unit}/{total_fmt} {total_unit}'
@@ -46,14 +47,24 @@ function get_Size(size: number): [number, SizeUnit] {
 }
 
 
-export function get(url: string, output: string) {
+export function get(option: any) {
+    let { url, output, default_header } = option;
+    try {
+        url = new URL(url)
+    }
+    catch (e) {
+        if (e instanceof TypeError) {
+            console.log("The provided url isn't valid")
+            return
+        }
+    }
     const file = fs.createWriteStream(output);
-    http.get(url, {
+    https.get(url, {
         headers: {
-            ...headers
+            ...(default_header ? headers : {})
         }
     }, (res: http.IncomingMessage) => {
-        res.on("error", (e) => console.error(e))
+        res.on("error", console.error)
         const len = Number(res.headers["content-length"]);
         const [len_fmt, len_unit] = get_Size(len);
         let bar = new cliProgress.SingleBar(bar_opt);
