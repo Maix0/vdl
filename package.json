@@ -14,7 +14,11 @@
   "dependencies": {
     "@types/cli-progress": "^3.4.2",
     "@types/node": "^13.13.4",
+    "@types/node-fetch": "^2.5.7",
+    "chalk": "^4.0.0",
     "cli-progress": "^3.8.1",
-    "commander": "^5.1.0"
+    "commander": "^5.1.0",
+    "moment": "^2.25.3",
+    "node-fetch": "^2.6.0"
   }
 }

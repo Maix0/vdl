@@ -1,10 +1,13 @@
-import https from "https";
 import fs from "fs";
 import cliProgress from "cli-progress";
-import http from "http";
+import fetch from "node-fetch";
+import util from 'util';
+const streamPipeline = util.promisify(require('stream').pipeline);
+import chalk from "chalk";
+
 
 const bar_opt = {
-    format: '{filename} [{bar}] {percentage}% | ETA: {eta}s | {value_fmt} {value_unit}/{total_fmt} {total_unit}'
+    format: chalk`{magenta ${"{filename}"}}\t {white ${"[{bar}]"}} {cyan ${"{percentage}"}}% | ETA: {yellow ${"{eta}"}}s | {green ${"{value_fmt}"}} {grey ${"{value_unit}"}}/{green ${"{total_fmt}"}} {grey ${"{total_unit}"}}`
 }
 
 const headers = {
@@ -21,11 +24,18 @@ enum SizeUnit {
 
 function get_Size(size: number): [number, SizeUnit] {
     let size_arr: number[][] = []
+    if (typeof size != "number") {
+        return [0, SizeUnit.B]
+    }
     for (let i = 0; i < 5; i++) {
         size_arr.push([size / 10 ** (3 * i), i])
     }
     size_arr = size_arr.map((n) => [Math.floor(n[0]), n[1]]).filter(n => n[0] > 0).reverse();
     let unit = SizeUnit.B;
+
+    if (!size_arr.length) {
+        return [0, SizeUnit.B]
+    }
     switch (size_arr[0][1]) {
         case 0:
             unit = SizeUnit.B
@@ -47,25 +57,31 @@ function get_Size(size: number): [number, SizeUnit] {
 }
 
 
-export function get(option: any) {
-    let { url, output, default_header } = option;
-    try {
-        url = new URL(url)
-    }
-    catch (e) {
-        if (e instanceof TypeError) {
-            console.log("The provided url isn't valid")
-            return
+export async function get(option: any): Promise<void> {
+    await new Promise(async (ok, err) => {
+        let {
+            url,
+            output,
+            default_header
+        } = option;
+        try {
+            url = new URL(url)
+        } catch (e) {
+            if (e instanceof TypeError) {
+                return err("The provided url isn't valid")
+            }
         }
-    }
-    const file = fs.createWriteStream(output);
-    https.get(url, {
-        headers: {
-            ...(default_header ? headers : {})
+        let finish = false;
+        const file = fs.createWriteStream(output);
+        file.on("close", () => finish = true)
+        const res = await fetch(url, {
+            headers: default_header ? headers : {}
+        })
+        streamPipeline(res.body, file);
+        let len: any = Number(res.headers.get("content-length"));
+        if (Number.isNaN(len)) {
+            len = "N/A"
         }
-    }, (res: http.IncomingMessage) => {
-        res.on("error", console.error)
-        const len = Number(res.headers["content-length"]);
         const [len_fmt, len_unit] = get_Size(len);
         let bar = new cliProgress.SingleBar(bar_opt);
         bar.start(len, 0, {
@@ -75,20 +91,20 @@ export function get(option: any) {
             value_unit: SizeUnit.B,
             filename: output
         })
-        let p = res.pipe(file)
         const update = () => {
-            let [val_fmt, val_unit] = get_Size(p.bytesWritten);
-            bar.update(p.bytesWritten, {
+            let [val_fmt, val_unit] = get_Size(file.bytesWritten);
+            bar.update(file.bytesWritten, {
                 total_fmt: len_fmt,
                 total_unit: len_unit,
                 value_fmt: val_fmt,
                 value_unit: val_unit,
                 filename: output
             })
-            if (p.bytesWritten >= len) {
-                bar.stop()
-            } else {
+            if (!finish) {
                 setTimeout(update, 1000)
+            } else {
+                bar.stop()
+                ok()
             }
         }
         setTimeout(update, 1000)
