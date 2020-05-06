@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+
+import cliProgress from "cli-progress";
 import {
     get
 } from "./lib"
@@ -11,6 +13,7 @@ import {
 } from "util"
 const readFile = promisify(fs.readFile)
 import moment from "moment"
+import chalk from "chalk"
 
 async function main() {
     program.version("0.0.1").name("vdl")
@@ -44,15 +47,38 @@ async function main() {
         return console.log("Error:\n You can't use -f and -u at the same time")
     }
     let startTime = moment()
-    let index = 0;
-    for (index = 0; index < url_with_output.length; index++) {
+    let counter = 0;
+    let err_coutner = 0;
+    let gets: Promise<boolean>[] = []
+    let bar_handler = new cliProgress.MultiBar({
+        clearOnComplete: false,
+        hideCursor: true,
+        format: `{filename}\t{g}{duration_formatted}{w} [{bar}] {c}{percentage}{w}% | ETA: {y}{eta_formatted}{w} | {value_fmt} {value_unit}/{total_fmt} {total_unit}`,
+        linewrap: false,
+    }, cliProgress.Presets.legacy);
+    for (let index = 0; index < url_with_output.length; index++) {
         const [url, output] = url_with_output[index];
-        await get({
-            url: url,
-            output: output,
-            default_header: program.default == "true" || program.default ? true : false
+        await new Promise((res) => {
+            setTimeout(() => {
+                gets.push(get({
+                    url: url,
+                    output: output,
+                    default_header: program.default == "true" || program.default ? true : false,
+                    main_bar: bar_handler
+                }))
+                res()
+            }, 100)
         })
     }
-    console.log(`Finished ${index + 1} downloads in ${moment().diff(startTime, "s")}s`)
+    (await Promise.all(gets)).forEach((b) => {
+        if (b) {
+            counter += 1;
+        }
+        else {
+            err_coutner += 1;
+        }
+    })
+    bar_handler.stop()
+    console.log(chalk`{white Finished} {yellow ${counter}} downloads in {green ${moment(moment().diff(startTime)).format("mm:ss")}} ${err_coutner > 0 ? chalk`({grey with {red ${err_coutner}} failure${err_coutner > 1 ? "s" : ""}})` : ""}`)
 }
 main()

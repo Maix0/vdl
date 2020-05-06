@@ -1,14 +1,10 @@
 import fs from "fs";
-import cliProgress from "cli-progress";
+
 import fetch from "node-fetch";
 import util from 'util';
 const streamPipeline = util.promisify(require('stream').pipeline);
-import chalk from "chalk";
+import chalk from "chalk"
 
-
-const bar_opt = {
-    format: chalk`{magenta ${"{filename}"}}\t {white ${"[{bar}]"}} {cyan ${"{percentage}"}}% | ETA: {yellow ${"{eta}"}}s | {green ${"{value_fmt}"}} {grey ${"{value_unit}"}}/{green ${"{total_fmt}"}} {grey ${"{total_unit}"}}`
-}
 
 const headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:75.0) Gecko/20100101 Firefox/75.0",
@@ -57,54 +53,64 @@ function get_Size(size: number): [number, SizeUnit] {
 }
 
 
-export async function get(option: any): Promise<void> {
-    await new Promise(async (ok, err) => {
+export async function get(option: any): Promise<boolean> {
+    return await new Promise(async (ok, err) => {
         let {
             url,
             output,
-            default_header
+            default_header,
+            main_bar
         } = option;
         try {
             url = new URL(url)
         } catch (e) {
             if (e instanceof TypeError) {
-                return err("The provided url isn't valid")
+                //console.log(chalk`{magenta ${output}} \t {red Given url isn't valid}`)
+                return ok(false)
             }
         }
         let finish = false;
         const file = fs.createWriteStream(output);
         file.on("close", () => finish = true)
-        const res = await fetch(url, {
+        const res = (await fetch(url, {
             headers: default_header ? headers : {}
-        })
+        }).catch((r => {
+            console.log(r)
+            err(false)
+        }))) as unknown as Response
+        if (res === null) {
+            err(false)
+        }
         streamPipeline(res.body, file);
         let len: any = Number(res.headers.get("content-length"));
         if (Number.isNaN(len)) {
             len = "N/A"
         }
         const [len_fmt, len_unit] = get_Size(len);
-        let bar = new cliProgress.SingleBar(bar_opt);
-        bar.start(len, 0, {
-            total_fmt: len_fmt,
-            total_unit: len_unit,
-            value_fmt: 0,
-            value_unit: SizeUnit.B,
-            filename: output
-        })
+        let bar = main_bar.create(len, 0, {
+            total_fmt: chalk.green(len_fmt),
+            total_unit: chalk.grey(len_unit),
+            value_fmt: chalk.green(0),
+            value_unit: chalk.grey(SizeUnit.B),
+            filename: chalk.magenta(output),
+            y: chalk.yellow("\uFFFD").split("\uFFFD")[0],
+            c: chalk.cyan("\uFFFD").split("\uFFFD")[0],
+            w: chalk.white("\uFFFD").split("\uFFFD")[0],
+            g: chalk.gray("\uFFFD").split("\uFFFD")[0]
+        });
         const update = () => {
             let [val_fmt, val_unit] = get_Size(file.bytesWritten);
             bar.update(file.bytesWritten, {
-                total_fmt: len_fmt,
-                total_unit: len_unit,
-                value_fmt: val_fmt,
-                value_unit: val_unit,
-                filename: output
+                total_fmt: chalk.green(len_fmt),
+                total_unit: chalk.grey(len_unit),
+                value_fmt: chalk.green(val_fmt),
+                value_unit: chalk.grey(val_unit),
+                filename: chalk.magenta(output)
             })
             if (!finish) {
                 setTimeout(update, 1000)
             } else {
-                bar.stop()
-                ok()
+                ok(true)
             }
         }
         setTimeout(update, 1000)
