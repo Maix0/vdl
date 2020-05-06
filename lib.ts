@@ -110,6 +110,7 @@ export async function get(option: any): Promise<boolean> {
             if (!finish) {
                 setTimeout(update, 1000)
             } else {
+                bar.stop()
                 ok(true)
             }
         }
