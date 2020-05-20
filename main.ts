@@ -16,7 +16,7 @@ import moment from "moment"
 import chalk from "chalk"
 
 async function main() {
-    program.version("0.0.1").name("vdl")
+    program.version("0.1.0").name("vdl")
 
     function collect(value: any, previous: any) {
         if (previous == undefined) {
@@ -54,7 +54,6 @@ async function main() {
         clearOnComplete: false,
         hideCursor: true,
         format: `{filename}\t{g}{duration_formatted}{w} [{bar}] {c}{percentage}{w}% | ETA: {y}{eta_formatted}{w} | {value_fmt} {value_unit}/{total_fmt} {total_unit}`,
-        linewrap: false,
     }, cliProgress.Presets.legacy);
     for (let index = 0; index < url_with_output.length; index++) {
         const [url, output] = url_with_output[index];

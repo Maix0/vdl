@@ -70,23 +70,26 @@ export async function get(option: any): Promise<boolean> {
             }
         }
         let finish = false;
-        const file = fs.createWriteStream(output);
-        file.on("close", () => finish = true)
+
         const res = (await fetch(url, {
             headers: default_header ? headers : {}
         }).catch((r => {
-            console.log(r)
-            err(false)
+            ok(false)
         }))) as unknown as Response
         if (res === null) {
-            err(false)
+            return ok(false)
         }
+        if (res.status != 200) {
+            return ok(false)
+        }
+        if (await util.promisify(fs.access)(output).then(_ => true).catch(_ => false)) {
+            return ok(false)
+        }
+        const file = fs.createWriteStream(output)
+        file.on("close", () => finish = true)
         streamPipeline(res.body, file);
         let len: any = Number(res.headers.get("content-length"));
-        if (Number.isNaN(len)) {
-            len = "N/A"
-        }
-        const [len_fmt, len_unit] = get_Size(len);
+        let [len_fmt, len_unit] = get_Size(len);
         let bar = main_bar.create(len, 0, {
             total_fmt: chalk.green(len_fmt),
             total_unit: chalk.grey(len_unit),
@@ -100,6 +103,10 @@ export async function get(option: any): Promise<boolean> {
         });
         const update = () => {
             let [val_fmt, val_unit] = get_Size(file.bytesWritten);
+            if (len < file.bytesWritten || Number.isNaN(len)) {
+                len_fmt = val_fmt
+                len_unit = val_unit
+            }
             bar.update(file.bytesWritten, {
                 total_fmt: chalk.green(len_fmt),
                 total_unit: chalk.grey(len_unit),
@@ -111,7 +118,7 @@ export async function get(option: any): Promise<boolean> {
                 setTimeout(update, 1000)
             } else {
                 bar.stop()
-                ok(true)
+                return ok(true)
             }
         }
         setTimeout(update, 1000)
