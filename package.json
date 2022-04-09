@@ -18,7 +18,7 @@
     "chalk": "^4.0.0",
     "cli-progress": "^3.8.1",
     "commander": "^5.1.0",
-    "moment": "^2.25.3",
+    "moment": "^2.29.2",
     "node-fetch": "^2.6.0"
   }
 }
